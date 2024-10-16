@@ -29,12 +29,13 @@ def tour_de_jeu(client_socket, nom):
     client_socket.send(f"{nom}, Premier lancer : {des}\n".encode())
 
     lancers = 1  # Premier lancer déjà fait
+    valeur_gardee = None  # Pour garder la valeur choisie
 
     while lancers < 3:  # Maximum de 3 lancers
         client_socket.send(f"{nom}, Entrez la valeur des dés à garder (ex: 5) ou tapez 'fin' pour ne pas relancer : ".encode())
         choix = client_socket.recv(1024).decode().strip()  # Réception de la valeur des dés à garder ou 'fin'
         
-        if choix == "fin":  # Si le joueur ne veut pas relancer, il peut taper 'fin'
+        if choix.lower() == "fin":  # Si le joueur ne veut pas relancer, il peut taper 'fin'
             break
 
         # Convertir la valeur choisie en un entier
@@ -50,7 +51,7 @@ def tour_de_jeu(client_socket, nom):
             client_socket.send(f"Entrée non valide, veuillez entrer un chiffre valide. Lancer actuel : {des}\n".encode())
 
     # Calcul du score pour ce tour (somme des dés ou, si une valeur a été gardée, multiplier cette valeur)
-    if choix != "fin":
+    if valeur_gardee is not None:
         points = des.count(valeur_gardee) * valeur_gardee  # Points pour la valeur gardée (nombre de dés * valeur)
     else:
         points = sum(des)  # Si 'fin' a été choisi, calculer la somme des dés
