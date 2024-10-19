@@ -36,48 +36,47 @@ class Partie:
 def choisir_partie(client_socket):
     global next_game_id
 
-    with lock:
-        # Envoyer la liste des parties en attente
-        if parties:
-            client_socket.send("Parties disponibles :\n".encode())
-            for id_partie, partie in parties.items():
+    # Envoyer la liste des parties en attente
+    if parties:
+        client_socket.send("Parties disponibles :\n".encode())
+        for id_partie, partie in parties.items():
+            if partie.jeu_commence:
+                client_socket.send(f"Partie {id_partie} (commencée) avec {len(partie.joueurs)} joueur(s)\n".encode())
+            else:
+                client_socket.send(f"Partie {id_partie} (non commencée) avec {len(partie.joueurs)} joueur(s)\n".encode())
+    else:
+        client_socket.send("Aucune partie disponible. Vous pouvez créer une nouvelle partie.\n".encode())
+
+    client_socket.send("Tapez l'ID de la partie pour la rejoindre ou 'nouvelle' pour en créer une : ".encode())
+    choix = client_socket.recv(1024).decode().strip()
+
+    # Si le joueur crée une nouvelle partie
+    if choix.lower() == "nouvelle":
+        id_partie = next_game_id
+        partie = Partie(id_partie)
+        parties[id_partie] = partie
+        next_game_id += 1
+        client_socket.send(f"Nouvelle partie {id_partie} créée.\n".encode())
+        return partie
+
+    # Si le joueur rejoint une partie existante
+    else:
+        try:
+            id_partie = int(choix)
+            if id_partie in parties:
+                partie = parties[id_partie]
                 if partie.jeu_commence:
-                    client_socket.send(f"Partie {id_partie} (commencée) avec {len(partie.joueurs)} joueur(s)\n".encode())
-                else:
-                    client_socket.send(f"Partie {id_partie} (non commencée) avec {len(partie.joueurs)} joueur(s)\n".encode())
-        else:
-            client_socket.send("Aucune partie disponible. Vous pouvez créer une nouvelle partie.\n".encode())
-
-        client_socket.send("Tapez l'ID de la partie pour la rejoindre ou 'nouvelle' pour en créer une : ".encode())
-        choix = client_socket.recv(1024).decode().strip()
-
-        # Si le joueur crée une nouvelle partie
-        if choix.lower() == "nouvelle":
-            id_partie = next_game_id
-            partie = Partie(id_partie)
-            parties[id_partie] = partie
-            next_game_id += 1
-            client_socket.send(f"Nouvelle partie {id_partie} créée.\n".encode())
-            return partie
-
-        # Si le joueur rejoint une partie existante
-        else:
-            try:
-                id_partie = int(choix)
-                if id_partie in parties:
-                    partie = parties[id_partie]
-                    if partie.jeu_commence:
-                        client_socket.send("La partie a déjà commencé, vous ne pouvez pas la rejoindre.\n".encode())
-                        return None
-                    else:
-                        client_socket.send(f"Vous avez rejoint la partie {id_partie}.\n".encode())
-                        return partie
-                else:
-                    client_socket.send("Partie invalide.\n".encode())
+                    client_socket.send("La partie a déjà commencé, vous ne pouvez pas la rejoindre.\n".encode())
                     return None
-            except ValueError:
-                client_socket.send("Entrée non valide.\n".encode())
+                else:
+                    client_socket.send(f"Vous avez rejoint la partie {id_partie}.\n".encode())
+                    return partie
+            else:
+                client_socket.send("Partie invalide.\n".encode())
                 return None
+        except ValueError:
+            client_socket.send("Entrée non valide.\n".encode())
+            return None
 
 
 # Fonction qui lance 5 dés et retourne une liste de résultats
@@ -183,7 +182,6 @@ def demarrer_serveur():
     while True:
         client_socket, client_address = server_socket.accept()
         print(f"Connexion acceptée de {client_address}")
-
         client_thread = threading.Thread(target=handle_client, args=(client_socket,))
         client_thread.start()
 
