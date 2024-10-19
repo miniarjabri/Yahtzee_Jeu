@@ -1,4 +1,4 @@
-import socket  
+import socket
 
 # Fonction principale pour jouer
 def jouer():
@@ -6,36 +6,38 @@ def jouer():
     try:
         client_socket.connect(('localhost', 12345))
     except ConnectionRefusedError:
-        print("Connexion refusée par le serveur. Le jeu a peut-être déjà commencé.")
+        print("Connexion refusée par le serveur.")
         return
-    
+
     while True:
         # Recevoir les messages du serveur
         message = client_socket.recv(1024).decode()
-        print(message)
-        
-        # Si le serveur demande le nom du joueur
+
+        if not message:  # Si le message est vide, arrêter la boucle
+            print("Connexion fermée par le serveur.")
+            break
+
+        print(f"Message du serveur : {message}")  # Debug pour vérifier ce que le serveur envoie
+
         if "nom" in message:
             choix = input("Entrez votre nom : ")
             client_socket.send(choix.encode())
-        
-        # Si la partie est terminée pour ce joueur, attendre les autres joueurs
-        elif "Partie terminée" in message:
-            print("En attente des autres joueurs...")
-        
-        # Si c'est l'annonce du gagnant, on ferme la connexion
-        elif "Le gagnant est" in message:
-            print("Annonce du gagnant reçue, fermeture de la connexion.")
-            break
-        
-        # Si le serveur indique que le jeu a déjà commencé et refuse la connexion
-        elif "Le jeu a déjà commencé" in message:
-            print("Connexion refusée. Le jeu a déjà commencé avec un certain nombre de joueurs.")
-            break
-        
-        # Si le serveur attend une réponse (lancer des dés, choix de relance, etc.)
-        elif "lancer" in message or "figure" in message:
+
+        elif "ID de la partie" in message:
             choix = input("Entrez votre choix : ")
+            client_socket.send(choix.encode())
+
+        elif "Vous avez rejoint" in message or "Nouvelle partie" in message:
+            print(message)
+
+        # Cas où le joueur doit choisir une valeur de dé à garder ou taper 'fin'
+        elif "valeur des dés à garder" in message:
+            choix = input("Entrez la valeur des dés à garder (ex: 5) ou tapez 'fin' : ")  # Saisie pour garder un dé
+            client_socket.send(choix.encode())
+
+        # Cas où le jeu est terminé ou pour envoyer des réponses "oui"/"non"
+        elif "relancer" in message or "terminer" in message:
+            choix = input("Entrez 'oui' ou 'non' : ")  # Saisie pour relancer ou non
             client_socket.send(choix.encode())
 
     client_socket.close()
