@@ -37,7 +37,7 @@ class ServeurJeu:
         valeur_gardee = None
 
         while lancers < 3:
-            socket_client.send(f"{nom}, Entrez la valeur des dés à garder (ex: 5) ou tapez 'fin' pour ne pas relancer : ".encode())
+            socket_client.send(f"{nom}, Entrez la valeur des dés à garder  ou tapez 'fin' pour ne pas relancer : ".encode())
             choix = socket_client.recv(1024).decode().strip()
 
             if choix.lower() == "fin":
