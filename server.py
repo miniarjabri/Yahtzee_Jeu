@@ -25,13 +25,13 @@ class ServeurJeu:
         """Relance les dés qui ne correspondent pas à la valeur gardée."""
         for i in range(len(des)):
             if des[i] != valeur_gardee:
-                des[i] = random.randint(1, 6)
+                des[i] = random.randint(1, 6) 
         return des
 
     def tour_de_jeu(self, socket_client, nom):
         """Gère un tour de jeu avec 3 lancers maximum."""
         des = self.lancer_des()
-        socket_client.send(f"{nom}, Premier lancer : {des}\n".encode())
+        socket_client.send(f"{nom}, Premier lancer : {des}\n".encode())   """ affichage du coté du client"""
 
         lancers = 1
         valeur_gardee = None
