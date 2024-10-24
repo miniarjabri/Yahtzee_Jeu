@@ -1,7 +1,7 @@
 import socket
 
 class ClientJeu:
-    def __init__(self, host='localhost', port=12345):
+    def __init__(self, host='localhost', port=2410):
         self.host = host
         self.port = port
         self.client_socket = None
