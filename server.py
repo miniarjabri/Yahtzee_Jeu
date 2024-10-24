@@ -31,7 +31,7 @@ class ServeurJeu:
     def tour_de_jeu(self, socket_client, nom):
         """Gère un tour de jeu avec 3 lancers maximum."""
         des = self.lancer_des()
-        socket_client.send(f"{nom}, Premier lancer : {des}\n".encode())   """ affichage du coté du client"""
+        socket_client.send(f"{nom}, Premier lancer : {des}\n".encode())   """ affichage du côté du client"""
 
         lancers = 1
         valeur_gardee = None
