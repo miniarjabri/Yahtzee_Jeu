@@ -34,7 +34,7 @@ class ServeurJeu:
         
         """la fonction gère un tour de jeu avec 3 lancers maximum. On utilise les méthodes lancer_des() et relancer_des() précedémment crées"""
         des = self.lancer_des()
-        socket_client.send(f"{nom}, Premier lancer : {des}\n".encode())   # affichage du côté du client
+        socket_client.send(f"{nom}, Premier lancer : {des}\n".encode())   # la fonction encode() convertit la chaine en octets transférables sur le réseau
 
         lancers = 1
         valeur_gardee = None
