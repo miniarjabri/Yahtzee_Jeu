@@ -139,7 +139,8 @@ class ServeurJeu:
         while True:
             socket_client, adresse_client = self.socket_serveur.accept()
             threading.Thread(target=self.gerer_connexion_client, args=(socket_client,)).start()
-
+            
+"""Ce script est exécuter directement s'il est imporé dans un autre module il ne sera pas exécuté"""
 if __name__ == "__main__": 
     serveur = ServeurJeu()
     serveur.demarrer_serveur()
