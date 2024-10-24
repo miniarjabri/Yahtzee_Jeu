@@ -56,6 +56,7 @@ class ServeurJeu:
         
         points = des.count(valeur_gardee) * valeur_gardee si valeur_gardee else sum(des)
         socket_client.send(f"{nom}, Vous avez marqué {points} points pour ce tour.\n".encode())
+        socket_client.send("\n".encode())
         return points
 
     def partie(self, socket_client, nom, id_joueur):
