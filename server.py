@@ -42,7 +42,6 @@ class ServeurJeu:
 
             if choix.lower() == "fin":
                 break
-
             try:
                 valeur_gardee = int(choix)
                 if valeur_gardee in des:
@@ -54,6 +53,7 @@ class ServeurJeu:
             except ValueError:
                 socket_client.send(f"Entrée non valide, veuillez entrer un chiffre valide.\n".encode())
 
+        
         points = des.count(valeur_gardee) * valeur_gardee si valeur_gardee else sum(des)
         socket_client.send(f"{nom}, Vous avez marqué {points} points pour ce tour.\n".encode())
         return points
