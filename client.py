@@ -63,7 +63,7 @@ class ClientJeu:
                 break
 
             # Si le serveur attend une réponse
-            elif "lancer" in message or "figure" in message:
+            elif "valeur" in message:
                 choix = input("Entrez votre choix : ")
                 self.envoyer_message(choix)
 
