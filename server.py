@@ -3,7 +3,7 @@ import threading
 import random
 
 class ServeurJeu:
-    def __init__(self, hote='localhost', port=12345):
+    def __init__(self, hote='localhost', port=2410):
         self.hote = hote
         self.port = port
         self.socket_serveur = None
