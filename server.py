@@ -17,7 +17,7 @@ class ServeurJeu:
         self.scores = {}
         self.sockets = {}
 
-    def lancer_des(self):
+    def lancer_des(self):                   
         """Lance 5 dés et retourne une liste de résultats."""
         return [random.randint(1, 6) for _ in range(5)]
 
