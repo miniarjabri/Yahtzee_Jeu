@@ -12,38 +12,36 @@ class ServeurJeu:
         self.noms_joueurs = []
         self.joueurs_ids = {}
         self.prochain_id_joueur = 1
-        self.nombre_clients_connectes = 0
+        self.nombre_clients_connectes = 0  
         self.tours_termines = 0
         self.scores = {}
         self.sockets = {}
-        
-""" On va créer des méthodes qui encapsulent des tâches spécifiques par principe d'abstraction"""
 
-    def lancer_des(self):                   
-        """ retourner la liste des 5 dès lancés aléatoirement """
+    def lancer_des(self):
+        """Lance 5 dés et retourne une liste de résultats."""
         return [random.randint(1, 6) for _ in range(5)]
 
     def relancer_des(self, des, valeur_gardee):
-        """ Relance les dés qui ne correspondent pas à la valeur gardée."""
+        """Relance les dés qui ne correspondent pas à la valeur gardée."""
         for i in range(len(des)):
             if des[i] != valeur_gardee:
                 des[i] = random.randint(1, 6) 
         return des
 
     def tour_de_jeu(self, socket_client, nom):
-        
-        """la fonction gère un tour de jeu avec 3 lancers maximum. On utilise les méthodes lancer_des() et relancer_des() précedémment crées"""
+        """Gère un tour de jeu avec 3 lancers maximum."""
         des = self.lancer_des()
-        socket_client.send(f"{nom}, Premier lancer : {des}\n".encode())   # la fonction encode() convertit la chaine en octets transférables sur le réseau
+        socket_client.send(f"{nom}, Premier lancer : {des}\n".encode())   #affichage du côté du client
 
         lancers = 1
         valeur_gardee = None
 
+
         while lancers < 3:
             socket_client.send(f"{nom}, Entrez la valeur des dés à garder  ou tapez 'fin' pour ne pas relancer : ".encode())
             choix = socket_client.recv(1024).decode().strip()
-            
-            if choix.lower() == "fin":   # vérification du choix du client en ignorant la case
+
+            if choix.lower() == "fin":
                 break
             try:
                 valeur_gardee = int(choix)
@@ -57,13 +55,14 @@ class ServeurJeu:
                 socket_client.send(f"Entrée non valide, veuillez entrer un chiffre valide.\n".encode())
 
         
-        points = des.count(valeur_gardee) * valeur_gardee si valeur_gardee else sum(des)
+        points = des.count(valeur_gardee) * valeur_gardee if valeur_gardee else sum(des)
         socket_client.send(f"{nom}, Vous avez marqué {points} points pour ce tour.\n".encode())
         socket_client.send("\n".encode())
+
         return points
 
     def partie(self, socket_client, nom, id_joueur):
-        """ La partie se compose de 6 tours """
+        """Gère une partie complète pour un joueur."""
         socket_client.send(f"Joueur {id_joueur} ({nom}), vous avez commencé la partie.\n".encode())
         points_totaux = 0
 
@@ -92,7 +91,7 @@ class ServeurJeu:
             pass
 
     def terminer_jeu(self):
-        """Clôture le jeu et annonce le joueur gagant"""
+        """Clôture le jeu et informe les joueurs du gagnant."""
         gagnant = max(self.scores, key=self.scores.get)
         print(f"Le gagnant est {gagnant} avec un score de {self.scores[gagnant]} points !")
 
@@ -139,8 +138,7 @@ class ServeurJeu:
         while True:
             socket_client, adresse_client = self.socket_serveur.accept()
             threading.Thread(target=self.gerer_connexion_client, args=(socket_client,)).start()
-            
-"""Ce script est exécuter directement s'il est imporé dans un autre module il ne sera pas exécuté"""
-if __name__ == "__main__": 
+
+if __name__ == "__main__":
     serveur = ServeurJeu()
     serveur.demarrer_serveur()
