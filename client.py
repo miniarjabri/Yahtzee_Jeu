@@ -49,7 +49,7 @@ class ClientJeu:
                 self.envoyer_message(choix)
 
             # Si la partie est terminée pour ce joueur, attendre les autres joueurs
-            elif "Partie terminée" in message:
+            elif "terminé vos tours" in message:
                 print("En attente des autres joueurs...")
 
             # Si c'est l'annonce du gagnant, on ferme la connexion
