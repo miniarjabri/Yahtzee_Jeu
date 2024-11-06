@@ -22,7 +22,7 @@ class ClientJeu:
             message = self.client_socket.recv(1024).decode()
             return message
         except socket.error as e:
-            print(f"Erreur lors de la réception du message: {e}")
+            print(f"Erreur lors de la réception du message: {e}") 
             return None
 
     def envoyer_message(self, message):
@@ -63,7 +63,7 @@ class ClientJeu:
                 break
 
             # Si le serveur attend une réponse
-            elif "valeur" in message:
+            elif "valeur" in message :
                 choix = input("Entrez votre choix : ")
                 self.envoyer_message(choix)
 
