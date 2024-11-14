@@ -1,47 +1,55 @@
 import socket
 
-# Fonction principale pour jouer
-def jouer():
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        client_socket.connect(('localhost', 12345))
-    except ConnectionRefusedError:
-        print("Connexion refusée par le serveur.")
-        return
+class Client:
+    def __init__(self, host='localhost', port=12345):
+        self.host = host
+        self.port = port
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    while True:
-        # Recevoir les messages du serveur
-        message = client_socket.recv(1024).decode()
+    def connect(self):
+        try:
+            self.client_socket.connect((self.host, self.port))
+            print("Connexion au serveur réussie.")
+        except ConnectionRefusedError:
+            print("Connexion refusée par le serveur.")
+            return False
+        return True
 
-        if not message:  # Si le message est vide, arrêter la boucle
-            print("Connexion fermée par le serveur.")
-            break
+    def play_game(self):
+        if not self.connect():
+            return
 
-        print(f"Message du serveur : {message}")  # Debug pour vérifier ce que le serveur envoie
+        try:
+            while True:
+                message = self.client_socket.recv(1024).decode()
 
-        if "nom" in message:
-            choix = input("Entrez votre nom : ")
-            client_socket.send(choix.encode())
+                if not message:  # Server closed connection
+                    print("Connexion fermée par le serveur.")
+                    break
 
-        elif "ID de la partie" in message:
-            choix = input("Entrez votre choix : ")
-            client_socket.send(choix.encode())
+                print(f"Message du serveur : {message}")
 
-        elif "Vous avez rejoint" in message or "Nouvelle partie" in message:
-            print(message)
+                # Handle specific messages from the server
+                if "nom" in message:
+                    choix = input("Entrez votre nom : ")
+                    self.client_socket.send(choix.encode())
 
-        # Cas où le joueur doit choisir une valeur de dé à garder ou taper 'fin'
-        elif "valeur des dés à garder" in message:
-            choix = input("Entrez la valeur des dés à garder (ex: 5) ou tapez 'fin' : ")  # Saisie pour garder un dé
-            client_socket.send(choix.encode())
+                elif "ID de la partie" in message:
+                    choix = input("Entrez votre choix : ")
+                    self.client_socket.send(choix.encode())
 
-        # Cas où le jeu est terminé ou pour envoyer des réponses "oui"/"non"
-        elif "relancer" in message or "terminer" in message:
-            choix = input("Entrez 'oui' ou 'non' : ")  # Saisie pour relancer ou non
-            client_socket.send(choix.encode())
+                elif "valeur des dés à garder" in message:
+                    choix = input("Entrez la valeur des dés à garder (ex: 5) ou tapez 'fin' : ")
+                    self.client_socket.send(choix.encode())
 
-    client_socket.close()
+                elif "relancer" in message or "terminer" in message:
+                    choix = input("Entrez 'oui' ou 'non' : ")
+                    self.client_socket.send(choix.encode())
 
-# Point d'entrée du programme
+        finally:
+            self.client_socket.close()
+            print("Déconnexion du serveur.")
+
 if __name__ == "__main__":
-    jouer()  # Lancer le jeu client
+    client = Client()
+    client.play_game()
