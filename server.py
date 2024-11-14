@@ -52,7 +52,7 @@ class Server:
                 client_socket.send("Parties disponibles :\n".encode())
                 for id_partie, partie in self.parties.items():
                     status = "commencée" if partie.jeu_commence else "non commencée"
-                    client_socket.send(f"Partie {id_partie} ({status}) avec {len(partie.joueurs)} joueur(s)\n".encode())
+                    client_socket.send(f"Partie {id_partie} ({status}) \n".encode())
             else:
                 client_socket.send("Aucune partie disponible. Vous pouvez créer une nouvelle partie.\n".encode())
 
