@@ -96,6 +96,7 @@ class Partie:
         self.jeu_commence = False
         self.scores = {}
         self.sockets = {}
+        self.elimines = []  # Liste des joueurs éliminés
 
     def ajouter_joueur(self, nom, client_socket, joueur_id):
         self.joueurs[nom] = joueur_id
@@ -106,32 +107,48 @@ class Partie:
         self.jeu_commence = True
         print(f"Partie {self.id_partie} démarre maintenant.")
 
-    def terminer_partie(self):
-        gagnant = max(self.scores, key=self.scores.get)
-        print(f"Fin de la partie {self.id_partie}. Le gagnant est {gagnant} avec un score de {self.scores[gagnant]} points.")
-        for nom_client, client_socket in self.sockets.items():
-            if nom_client == gagnant:
-                client_socket.send(f"Félicitations {nom_client}, vous avez gagné avec un score de {self.scores[nom_client]} points !\n".encode())
-            else:
-                client_socket.send(f"Désolé {nom_client}, vous avez perdu. Le gagnant est {gagnant} avec un score de {self.scores[gagnant]} points.\n".encode())
-            client_socket.close()
-        print(f"Tous les clients de la partie {self.id_partie} ont été déconnectés.")
-
     def gerer_client(self, client_socket, nom_client):
         total_score = 0
+        print(f"Début de la gestion des tours pour le joueur {nom_client}.")
         
         for tour in range(6):
-            points = self.tour_de_jeu(client_socket, nom_client)
-            total_score += points
-            client_socket.send(f"Tour {tour + 1} terminé. Score actuel : {total_score}.\n".encode())
-        print(f"Le joueur {nom_client} a terminé avec un score total de {total_score}.")
+            # Si le joueur est éliminé, on saute ses tours
+            if nom_client in self.elimines:
+                print(f"{nom_client} est éliminé. Tour ignoré.")
+                break
+            
+            print(f"Tour {tour + 1} pour le joueur {nom_client}")
+            try:
+                points = self.tour_de_jeu(client_socket, nom_client)
+                total_score += points
+                client_socket.send(f"Tour {tour + 1} terminé. Score actuel : {total_score}.\n".encode())
+            except ConnectionResetError:
+                print(f"{nom_client} a quitté la partie. Il est maintenant éliminé.")
+                self.eliminer_joueur(nom_client)
+                break
+            except BrokenPipeError:
+                print(f"Erreur de connexion avec {nom_client}. Considéré comme éliminé.")
+                self.eliminer_joueur(nom_client)
+                break
 
-        with threading.Lock():
-            self.scores[nom_client] = total_score
-            self.tours_termines += 1
-            if self.tours_termines == len(self.joueurs):
-                print(f"Tous les tours sont terminés pour la partie {self.id_partie}.")
-                self.terminer_partie()
+        if nom_client not in self.elimines:
+            print(f"Le joueur {nom_client} a terminé avec un score total de {total_score}.")
+            with threading.Lock():
+                self.scores[nom_client] = total_score
+                self.tours_termines += 1
+
+        if self.tours_termines + len(self.elimines) == len(self.joueurs):
+            print(f"Tous les tours sont terminés ou tous les joueurs sont éliminés pour la partie {self.id_partie}.")
+            self.terminer_partie()
+
+    def eliminer_joueur(self, nom_client):
+        """Marque un joueur comme éliminé et informe les autres joueurs."""
+        self.elimines.append(nom_client)
+        del self.joueurs[nom_client]
+        print(f"{nom_client} a été éliminé de la partie {self.id_partie}.")
+        for joueur, socket in self.sockets.items():
+            if joueur not in self.elimines:
+                socket.send(f"{nom_client} a quitté la partie et est éliminé.\n".encode())
 
     def tour_de_jeu(self, client_socket, nom):
         des = self.lancer_des()
@@ -142,17 +159,23 @@ class Partie:
 
         while lancers < 3:
             client_socket.send(f"{nom}, Entrez la valeur des dés à garder ou tapez 'fin' pour ne pas relancer : ".encode())
-            choix = client_socket.recv(1024).decode().strip()
+            try:
+                choix = client_socket.recv(1024).decode().strip()
+            except ConnectionResetError:
+                print(f"{nom} s'est déconnecté pendant un tour.")
+                raise ConnectionResetError
 
             if choix.lower() == "fin":
                 break
+            elif choix.lower() == "quitter":
+                print(f"{nom} a choisi de quitter la partie.")
+                raise ConnectionResetError  # Déclenche l'élimination du joueur
 
             try:
                 valeur_gardee = int(choix)
                 if valeur_gardee in des:
                     des = self.relancer_des(des, valeur_gardee)
                     lancers += 1
-                
                     client_socket.send(f"{nom}, Lancer suivant : {des}\n".encode())
                 else:
                     client_socket.send(f"Entrée non valide, la valeur {valeur_gardee} ne fait pas partie des dés {des}. Lancer actuel : {des}\n".encode())
@@ -160,8 +183,32 @@ class Partie:
                 client_socket.send(f"Entrée non valide. Veuillez réessayer.\n".encode())
 
         points = des.count(valeur_gardee) * valeur_gardee if valeur_gardee else sum(des)
+        print(f"{nom} a marqué {points} points ce tour.")
         return points
 
+    def terminer_partie(self):
+        """Clôture la partie, déclare le gagnant et informe les joueurs."""
+        if not self.scores:
+            print("Tous les joueurs ont été éliminés. Aucun gagnant.")
+            for joueur, socket in self.sockets.items():
+                if joueur not in self.elimines:
+                    socket.send("Tous les joueurs ont été éliminés. Fin de la partie sans gagnant.\n".encode())
+                socket.close()
+            return
+
+        gagnant = max(self.scores, key=self.scores.get)
+        print(f"Fin de la partie {self.id_partie}. Le gagnant est {gagnant} avec un score de {self.scores[gagnant]} points.")
+        for nom_client, client_socket in self.sockets.items():
+            if nom_client in self.elimines:
+                continue
+            if nom_client == gagnant:
+                message = f"Félicitations {nom_client}, vous avez gagné avec un score de {self.scores[nom_client]} points !"
+                client_socket.send(f"{message}\n".encode())
+            else:
+                message = f"Désolé {nom_client}, vous avez perdu. Le gagnant est {gagnant} avec un score de {self.scores[gagnant]} points."
+                client_socket.send(f"{message}\n".encode())
+            client_socket.close()
+        print(f"Tous les clients de la partie {self.id_partie} ont été déconnectés.")
     @staticmethod
     def lancer_des():
         return [random.randint(1, 6) for _ in range(5)]
@@ -172,6 +219,7 @@ class Partie:
             if des[i] != valeur_gardee:
                 des[i] = random.randint(1, 6)
         return des
+
 
 if __name__ == "__main__":
     server = Server()
