@@ -39,7 +39,7 @@ class Client:
                     self.client_socket.send(choix.encode())
 
                 elif "valeur des dés à garder" in message:
-                    choix = input("Entrez la valeur des dés à garder (ex: 5) ou tapez 'fin' : ")
+                    choix = input("Entrez la valeur des dés à garder ou tapez 'fin' : ")
                     self.client_socket.send(choix.encode())
 
                 elif "relancer" in message or "terminer" in message:
