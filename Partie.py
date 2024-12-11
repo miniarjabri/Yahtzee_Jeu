@@ -142,5 +142,5 @@ class Partie:
 
 
 if __name__ == "__main__":
-    server = Server()
-    server.start()
+    partie = Partie()
+    partie.start()
