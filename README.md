@@ -1,2 +1,2 @@
-# Yahtzee_Jeu_Version_Multiparties
+# Jeu_Yahtzee_Version_Multiparties
 
