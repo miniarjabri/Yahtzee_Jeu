@@ -7,16 +7,11 @@ class ServeurJeu:
         self.hote = hote
         self.port = port
         self.socket_serveur = None
-        self.jeu_commence = False
         self.lock = threading.Lock()
-        self.noms_joueurs = []
-        self.joueurs_ids = {}
-        self.prochain_id_joueur = 1
-        self.nombre_clients_connectes = 0
-        self.tours_termines = 0
-        self.scores = {}
-        self.sockets = {}
-        self.clients = []  # Liste des sockets clients pour le chat
+        self.parties = {}  # {id_partie: {"nom": nom_partie, "joueurs": [], "chat": [], "scores": {}}}
+        self.prochain_id_partie = 1
+        self.joueurs=0
+        self.partieterminee=0
 
     def lancer_des(self):
         return [random.randint(1, 6) for _ in range(5)]
@@ -27,128 +22,168 @@ class ServeurJeu:
                 des[i] = random.randint(1, 6)
         return des
 
-    def diffuser_message(self, message, emetteur=None):
-        """Diffuser un message à tous les clients sauf l'émetteur."""
-        with self.lock: # seul un thread à la fois accède ou modifie la liste des clients
-            for client in self.clients:
-                if client != emetteur:
+    def diffuser_message(self, id_partie, message, emetteur=None):
+        """Diffuser un message à tous les joueurs d'une même partie."""
+        with self.lock:
+            for joueur in self.parties[id_partie]["joueurs"]:
+                if joueur != emetteur:
                     try:
-                        client.send(f"[Chat] {message}".encode())
+                        joueur.send(f"[Chat - Partie {id_partie}] {message}".encode())
                     except:
-                        self.clients.remove(client) # si un client se déconnecte il est retiré de la liste
+                        self.parties[id_partie]["joueurs"].remove(joueur)
 
-    def partie(self, socket_client, nom_client, id_joueur):
-        """Gère une partie complète pour un joueur."""
-        print(f"Début de la partie pour {nom_client} (ID: {id_joueur})")
-        socket_client.send(f"Joueur {id_joueur} ({nom_client}), vous avez commencé la partie.\n".encode())
+    def partie(self, socket_client, nom_client, id_partie):
+        """Gérer la partie d'un joueur."""
+        print(f"Début de la partie {id_partie} pour {nom_client}")
+        socket_client.send(f"Bienvenue dans la partie '{self.parties[id_partie]['nom']}', {nom_client} !\n".encode())
+
         points_totaux = 0
+
+        # Marquer la partie comme commencée au premier lancer de dés
+        with self.lock:
+            if not self.parties[id_partie]["commence"]:
+                self.parties[id_partie]["commence"] = True
 
         for tour in range(6):  # Chaque joueur joue 6 tours
             des = self.lancer_des()
-            socket_client.send(f"Tour {tour + 1} : Vous avez lancé {des}\n".encode())
-            choix = None
+            socket_client.send(f"\nTour {tour + 1} : Vous avez lancé {des}\n".encode())
 
-            for lancer in range(3):  # Dans chaque tour il y a 3 lancers
-                socket_client.send(f"Entrez une valeur à garder ou tapez 'fin' pour arrêter, ou 'message: <votre message>' pour discuter : ".encode())
-                while True:
-                    try:
-                        choix = socket_client.recv(1024).decode().strip()
+            lancer = 1  # Compteur de lancers
+            while lancer < 3:
+                socket_client.send("Entrez une valeur à garder ou tapez 'fin' pour terminer le tour, ou 'message: <votre message>' pour discuter : ".encode())
+                choix = socket_client.recv(1024).decode().strip()
 
-                        # Vérifier si c'est un message de chat
-                        if choix.startswith("message:"):
-                            contenu = choix.replace("message:", "").strip()
-                            self.diffuser_message(f"{nom_client} : {contenu}", socket_client)
-                        elif choix.lower() == "fin":
-                            break
-                        else:
-                            valeur_gardee = int(choix)
-                            if valeur_gardee in des:
-                                des = self.relancer_des(des, valeur_gardee)
-                                socket_client.send(f"Résultat après relance : {des}\n".encode())
-                            else:
-                                socket_client.send(f"Valeur non valide, essayez encore.\n".encode())
-                    except ValueError:
-                        socket_client.send(f"Entrée invalide, veuillez entrer un nombre, 'fin', ou 'message: <votre message>'.\n".encode())
-                        continue
+                # Gestion des messages de chat
+                if choix.startswith("message:"):
+                    contenu = choix.replace("message:", "").strip()
+                    self.diffuser_message(id_partie, f"{nom_client} : {contenu}", socket_client)
+                    continue
+
+                # Si le joueur termine le tour
+                if choix.lower() == "fin":
                     break
 
-            points = des.count(int(choix)) * int(choix) if choix.isdigit() else sum(des)
+                # Gestion du lancer des dés
+                try:
+                    valeur_gardee = int(choix)
+                    if valeur_gardee in des:
+                        des = self.relancer_des(des, valeur_gardee)
+                        socket_client.send(f"Résultat après relance : {des}\n".encode())
+                        lancer += 1  # Incrémenter uniquement après un lancer valide
+                    else:
+                        socket_client.send(f"Valeur non valide, essayez encore.\n".encode())
+                except ValueError:
+                    socket_client.send(f"Entrée invalide. Veuillez entrer un nombre ou 'fin'.\n".encode())
+            
+            # Calcul des points pour ce tour
+            points = sum(des)
             points_totaux += points
             socket_client.send(f"Points pour ce tour : {points}\n".encode())
+        
+        with self.lock:
+            # Stocker le score total du joueur
+            self.parties[id_partie]["scores"][nom_client] = points_totaux
+            self.parties[id_partie]["joueurs_termine"] += 1
 
-        print(f"{nom_client} a terminé la partie avec un score total de {points_totaux}.")
+            # Vérifier si tous les joueurs de cette partie ont terminé
+            if self.parties[id_partie]["joueurs_termine"] == len(self.parties[id_partie]["joueurs"]):
+                print(f"Tous les joueurs de la partie {id_partie} ont terminé.")
+                self.annoncer_gagnant(id_partie)
+
         socket_client.send(f"Partie terminée ! Votre score total : {points_totaux}\n".encode())
-        return points_totaux
 
-    def gerer_client(self, socket_client, nom_client, id_joueur):
-        """Gère les interactions avec un client et la progression du jeu."""
-        try:
-            # Gérer une partie pour ce joueur
-            score_total = self.partie(socket_client, nom_client, id_joueur)
-            self.scores[nom_client] = score_total
-            self.sockets[nom_client] = socket_client
+    def annoncer_gagnant(self, id_partie):
+        """Annonce le gagnant de la partie."""
+        scores = self.parties[id_partie]["scores"]
+        gagnant = max(scores, key=scores.get)
+        score_gagnant = scores[gagnant]
 
-            with self.lock:
-                self.tours_termines += 1
-                if self.tours_termines == len(self.noms_joueurs):
-                    self.terminer_jeu()
-                else:
-                    socket_client.send(f"{nom_client}, vous avez terminé vos tours. Veuillez attendre les autres joueurs.\n".encode())
+        message_gagnant = f"Le gagnant de la partie '{self.parties[id_partie]['nom']}' est {gagnant} avec un score de {score_gagnant} points !"
+        print(message_gagnant)
+        
 
-        except (ConnectionResetError, BrokenPipeError):
-            print(f"Le client {nom_client} s'est déconnecté.")
-        finally:
-            self.clients.remove(socket_client)
-
-    def terminer_jeu(self):
-        """Clôture le jeu et informe les joueurs du gagnant."""
-        gagnant = max(self.scores, key=self.scores.get)
-        for nom_client, socket_client in self.sockets.items():
+        # Diffuser le message à tous les joueurs
+        for joueur in self.parties[id_partie]["joueurs"]:
             try:
-                if nom_client == gagnant:
-                    socket_client.send(f"Félicitations {nom_client}, vous avez gagné avec un score de {self.scores[nom_client]} points !\n".encode())
-                else:
-                    socket_client.send(f"Désolé {nom_client}, vous avez perdu. Le gagnant est {gagnant} avec un score de {self.scores[gagnant]} points.\n".encode())
-            finally:
-                socket_client.close()
-        print("Le jeu est terminé et tous les clients ont été déconnectés.")
+                joueur.send(f"{message_gagnant}\n".encode())
+            except:
+                continue
+
+
+        # Supprimer la partie terminée
+        del self.parties[id_partie]
+
 
     def gerer_connexion_client(self, socket_client):
-        """Traite la connexion des clients."""
-        with self.lock:
-            if self.jeu_commence:
-                socket_client.send("Désolé, le jeu a déjà commencé. Vous ne pouvez pas rejoindre.\n".encode())
-                socket_client.close()
-                return
+        """Gérer la connexion des clients."""
+        socket_client.send("Bienvenue au serveur de jeu ! Voici les parties disponibles :\n".encode())
 
-            self.nombre_clients_connectes += 1
-            self.clients.append(socket_client)
+        while True:  # Boucle pour permettre au joueur de réessayer
+            with self.lock:
+                for id_partie, infos_partie in self.parties.items():
+                    socket_client.send(f"ID: {id_partie} | Nom: {infos_partie['nom']} | Commencée : {'Oui' if infos_partie['commence'] else 'Non'}\n".encode())
 
-        socket_client.send("Bienvenue au jeu de Yahtzee ! Veuillez entrer votre nom : ".encode())
-        nom_client = socket_client.recv(1024).decode().strip()
+            socket_client.send("Tapez l'ID de la partie que vous souhaitez rejoindre, ou 'new' pour créer une nouvelle partie, ou 'quit' pour quitter : ".encode())
+            choix = socket_client.recv(1024).decode().strip()
 
-        with self.lock:
-            id_joueur = self.prochain_id_joueur
-            self.joueurs_ids[nom_client] = id_joueur
-            self.noms_joueurs.append(nom_client)
-            self.prochain_id_joueur += 1
+            with self.lock:
+                if choix.lower() == "new":
+                    # Créer une nouvelle partie
+                    nom_partie = f"Partie {self.prochain_id_partie}"
+                    self.parties[self.prochain_id_partie] = {
+                        "nom": nom_partie,
+                        "joueurs": [],
+                        "chat": [],
+                        "scores": {},
+                        "commence": False,
+                        "joueurs_termine": 0, 
+                    }
+                    id_partie = self.prochain_id_partie
+                    self.prochain_id_partie += 1
+                    socket_client.send(f"Nouvelle partie créée : {nom_partie} (ID: {id_partie})\n".encode())
+                elif choix.lower() == "quit":
+                    socket_client.send("Vous avez quitté le serveur de jeu. À bientôt !\n".encode())
+                    socket_client.close()
+                    return
+                else:
+                    try:
+                        id_partie = int(choix)
+                        if id_partie not in self.parties:
+                            socket_client.send("ID de partie invalide.\n".encode())
+                            continue
 
-            if not self.jeu_commence:
-                self.jeu_commence = True
+                        # Vérifier si la partie a déjà commencé
+                        if self.parties[id_partie]["commence"]:
+                            socket_client.send("La partie a déjà commencé. Vous ne pouvez pas la rejoindre.\n".encode())
+                            continue
+                    except ValueError:
+                        socket_client.send("Entrée invalide. Veuillez entrer un ID valide, 'new' pour créer une partie, ou 'quit' pour quitter.\n".encode())
+                        continue
 
-        self.gerer_client(socket_client, nom_client, id_joueur)
+            socket_client.send("Veuillez entrer votre nom : ".encode())
+            nom_client = socket_client.recv(1024).decode().strip()
+
+            with self.lock:
+                # Ajouter le joueur à la partie après avoir obtenu son nom
+                self.parties[id_partie]["joueurs"].append(socket_client)
+
+            # Lancer un thread pour gérer la partie
+            threading.Thread(target=self.partie, args=(socket_client, nom_client, id_partie)).start()
+            break
 
     def demarrer_serveur(self):
-        """Démarre le serveur et gère les clients."""
+        """Démarrer le serveur."""
         self.socket_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket_serveur.bind((self.hote, self.port))
         self.socket_serveur.listen(5)
-        print("Le serveur attend des connexions...")
+        print("Le serveur est prêt. En attente de connexions...")
 
         while True:
-            socket_client, adresse_client = self.socket_serveur.accept()
+            socket_client, _ = self.socket_serveur.accept()
             threading.Thread(target=self.gerer_connexion_client, args=(socket_client,)).start()
+            self.joueurs += 1
 
-if __name__ == "__main__": # Point d'entrée pour l'exécution du code
+
+if __name__ == "__main__":
     serveur = ServeurJeu()
     serveur.demarrer_serveur()
